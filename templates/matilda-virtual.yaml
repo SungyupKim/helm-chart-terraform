@@ -1,0 +1,86 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: matilda-virtual
+  namespace: kubeflow
+spec:
+  gateways:
+  - kubeflow-gateway
+  hosts:
+  - '*'
+  http:
+  - match:
+    - uri:
+        prefix: /keycloak
+    rewrite:
+      uri: /keycloak
+    route:
+    - destination:
+        host: keycloak.keycloak.svc.cluster.local
+        port:
+          number: 80
+    timeout: 300s
+  - match:
+    - uri:
+        prefix: /mlops/static
+    rewrite:
+      uri: /mlops/static
+    route:
+    - destination:
+        host: hdx-portal-mlops-backend.kubeflow.svc.cluster.local
+        port:
+          number: 9000
+    timeout: 300s
+  - match:
+    - uri:
+        prefix: /mlops/api
+    rewrite:
+      uri: /api
+    route:
+    - destination:
+        host: hdx-portal-mlops-backend.kubeflow.svc.cluster.local
+        port:
+          number: 9000
+    timeout: 300s
+  - match:
+    - uri:
+        prefix: /asset_hub/api
+    rewrite:
+      uri: /api
+    route:
+    - destination:
+        host: hdx-portal-asset-backend.kubeflow.svc.cluster.local
+        port:
+          number: 9010
+    timeout: 300s
+  - match:
+    - uri:
+        prefix: /asset_hub/open_api
+    rewrite:
+      uri: /api
+    route:
+    - destination:
+        host: hdx-portal-asset-backend.kubeflow.svc.cluster.local
+        port:
+          number: 9010
+    timeout: 300s
+  - match:
+    - uri:
+        prefix: /console
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: hdx-portal-admin-frontend.kubeflow.svc.cluster.local
+        port:
+          number: 8080
+  - match:
+    - uri:
+        prefix: /
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: hdx-portal-frontend.kubeflow.svc.cluster.local
+        port:
+          number: 8080

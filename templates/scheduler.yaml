@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: kubeflow
+  name: hdx-portal-background-task
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hdx-portal-background-task
+  template:
+    metadata:
+      labels:
+        app: hdx-portal-background-task
+    spec:
+      volumes:
+        - name: project-pv
+          persistentVolumeClaim:
+            claimName: project-pvc
+      containers:
+      - args:
+        - manage.py
+        - runserver
+        - 0.0.0.0:8000
+        - --settings
+        - schedulers.settings.terraform
+        - --noreload
+        command:
+        - python3
+        env:
+        - name: KUBECONFIG
+          value: /home/mlops/user/kube_config
+        image: {{.Values.nexusDomain}}/docker-local/matilda-background-task:{{.Values.schedulerTag}}
+        name: hdx-portal-background-task
+        ports:
+        - containerPort: 8000
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /home/mlops/user
+          name: project-pv
+          subPath: public/user
+      imagePullSecrets:
+      - name: nexuscred

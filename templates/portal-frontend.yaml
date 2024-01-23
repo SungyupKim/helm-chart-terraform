@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hdx-portal-frontend
+  namespace: kubeflow
+spec:
+  selector:
+    app: hdx-portal-frontend
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hdx-portal-frontend
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hdx-portal-frontend
+  template:
+    metadata:
+      labels:
+        app: hdx-portal-frontend
+    spec:
+      containers:
+      - name: hdx-portal-frontend
+        imagePullPolicy: Always
+        image: {{.Values.nexusDomain}}/docker-local/matilda-portal-frontend:{{.Values.portalFrontendTag}}
+        ports:
+        - containerPort: 8080
+      imagePullSecrets:
+      - name: nexuscred
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: hdx-portal-frontend
+  namespace: kubeflow
+spec:
+  rules:
+  - {}
+  selector:
+    matchLabels:
+      app: hdx-portal-frontend

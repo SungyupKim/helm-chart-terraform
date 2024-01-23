@@ -1,0 +1,88 @@
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: hdx-portal-asset-backend
+  namespace: kubeflow
+spec:
+  rules:
+    - {}
+  selector:
+    matchLabels:
+      app: hdx-portal-asset-backend
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hdx-portal-asset-backend
+  namespace: kubeflow
+spec:
+  selector:
+    app: hdx-portal-asset-backend
+  type: ClusterIP
+  ports:
+    - port: 9010
+      targetPort: 8000
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hdx-portal-asset-backend
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hdx-portal-asset-backend
+  template:
+    metadata:
+      labels:
+        app: hdx-portal-asset-backend
+    spec:
+      hostNetwork: false
+      volumes:
+        - name: dvc-volume
+          persistentVolumeClaim:
+            claimName: asset-dvc
+        - name: asset-local
+          persistentVolumeClaim:
+            claimName: asset-local
+        - hostPath:
+            path: /usr/share/zoneinfo/Asia/Seoul
+            type: ""
+          name: tz-config
+      containers:
+        - name: hdx-portal-asset-backend
+          image: {{.Values.nexusDomain}}/docker-local/matilda-asset-backend:{{.Values.assetBackendTag}}
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - gunicorn --enable-stdio-inheritance --preload --bind 0.0.0.0:8000
+              config.wsgi:application --log-level debug -w 8 --timeout 600
+              --threads 2 --env DJANGO_SETTINGS_MODULE=config.settings.terraform
+              --daemon;DJANGO_SETTINGS_MODULE=config.settings.terraform celery -A
+              config worker -c 4 --beat --scheduler redbeat.RedBeatScheduler -l
+              info
+          imagePullPolicy: Always
+          resources:
+            limits:
+              cpu: "1"
+              memory: 2000Mi
+            requests:
+              cpu: 10m
+              memory: 200Mi
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - mountPath: /data/dvc
+              name: dvc-volume
+            - mountPath: /data/backend
+              name: asset-local
+            - mountPath: /etc/localtime
+              name: tz-config
+              readOnly: true
+      imagePullSecrets:
+        - name: nexuscred

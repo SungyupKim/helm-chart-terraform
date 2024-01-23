@@ -1,0 +1,151 @@
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: hdx-portal-mlops-backend
+  namespace: kubeflow
+spec:
+  rules:
+    - {}
+  selector:
+    matchLabels:
+      app: hdx-portal-mlops-backend
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/instance: hdx-portal-mlops-backend
+  name: hdx-portal-mlops-backend-cp
+  namespace: kubeflow
+spec:
+  ports:
+    - port: 8000
+      protocol: TCP
+      targetPort: 8000
+  selector:
+    app: hdx-portal-mlops-backend
+  sessionAffinity: None
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hdx-portal-mlops-backend
+  namespace: kubeflow
+spec:
+  selector:
+    app: hdx-portal-mlops-backend
+  type: ClusterIP
+  ports:
+    - port: 9000
+      targetPort: 8000
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hdx-portal-mlops-backend
+  namespace: kubeflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hdx-portal-mlops-backend
+  template:
+    metadata:
+      labels:
+        app: hdx-portal-mlops-backend
+    spec:
+      hostNetwork: false
+      volumes:
+        - name: project-pv
+          persistentVolumeClaim:
+            claimName: project-pvc
+        - name: dockerfiles
+          persistentVolumeClaim:
+            claimName: docker-pvc
+        - hostPath:
+            path: /var/run/docker.sock
+          name: dockersock
+        - name: docker-config
+          secret:
+            defaultMode: 420
+            items:
+              - key: .dockerconfigjson
+                path: config.json
+            secretName: nexuscred
+      initContainers:
+        - name: kube-config
+          image: {{.Values.nexusDomain}}/docker-local/matilda-backend:{{.Values.mlopsBackendTag}}
+          command: ['cp', '-n', '/kube/kube-config', '/home/mlops/user/kube_config']
+          volumeMounts:
+            - mountPath: /home/mlops/user
+              name: project-pv
+              subPath: public/user
+      containers:
+        - name: hdx-portal-mlops-backend
+          image: {{.Values.nexusDomain}}/docker-local/matilda-backend:{{.Values.mlopsBackendTag}}
+          command:
+            - gunicorn
+          args:
+            - mlopsapi.wsgi:application
+            - --timeout
+            - "600"
+            - --bind
+            - 0.0.0.0:8000
+            - --env
+            - DJANGO_SETTINGS_MODULE=mlopsapi.settings.terraform-hdx
+            - -w
+            - "3"
+            - --reload
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: KUBECONFIG
+              value: /home/mlops/user/kube_config
+            - name: PORTAL_URL
+              value: https://{{.Values.platformDomain}}/
+            - name: KUBEFLOW_HTTPS_URL
+              value: https://{{.Values.platformDomain}}
+            - name: NEXUS_REPO_DEFAULT_IP
+              value: nexus.{{.Values.platformDomain}}/notebooks/
+            - name: NEXUS_REPO_CUSTOM_IP
+              value: nexus.{{.Values.platformDomain}}/custom_notebooks/
+            - name: NEXUS_REPO_DOMAIN
+              value: nexus.{{.Values.platformDomain}}
+            - name: DOCKER_CONFIG_JSON
+              value: {{.Values.nexusDockerConfig}}
+            - name: NEXUS_V2_API_URL
+              value: https://nexus.{{.Values.platformDomain}}/repository/docker-hosted/v2/
+            - name: INDEX_URL
+              value: "https://admin:admin123@nexus-web.{{.Values.platform_domain}}/repository/pypi-repos/simple --trusted-host nexus-web.{{.Values.platformDomain}}"
+          resources:
+            limits:
+              cpu: "2"
+              memory: 2000Mi
+            requests:
+              cpu: 10m
+              memory: 200Mi
+          volumeMounts:
+            - mountPath: /home/mlops/project
+              name: project-pv
+              subPath: public/
+            - mountPath: /var/run/docker.sock
+              name: dockersock
+            - mountPath: /home/mlops/.docker/
+              name: docker-config
+            - mountPath: /home/mlops/user
+              name: project-pv
+              subPath: public/user
+            - mountPath: /home/mlops/dockerfiles
+              name: dockerfiles
+          ports:
+            - containerPort: 8000
+      imagePullSecrets:
+        - name: nexuscred
+      securityContext:
+        runAsUser: 1000
+        fsGroup: 1000
+

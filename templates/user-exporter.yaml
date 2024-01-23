@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hdx-portal-user-exporter-svc
+  namespace: kubeflow
+spec:
+  ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: hdx-portal-user-exporter
+  sessionAffinity: None
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hdx-portal-user-exporter
+  namespace: kubeflow
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: hdx-portal-user-exporter
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: hdx-portal-user-exporter
+    spec:
+      containers:
+      - env:
+        - name: DATABASE_HOST
+          value: postgresql.database.svc.cluster.local
+        - name: DATABASE_PORT
+          value: "5432"
+        - name: DATABASE_USER
+          value: postgres
+        - name: DATABASE_PASSWORD
+          value: megazone00!
+        - name: DATABASE_NAME
+          value: postgres
+        image: {{.Values.nexusDomain}}/docker-local/user-exporter:latest
+        imagePullPolicy: Always
+        name: hdx-portal-user-exporter
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        resources:
+          limits:
+            cpu: "2"
+            memory: 2000Mi
+          requests:
+            cpu: 10m
+            memory: 200Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /user
+          name: user-pv
+          subPath: public/user
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+      - name: nexuscred
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: user-pv
+        persistentVolumeClaim:
+          claimName: project-pvc
+---
+
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: hdx-portal-user-exporter
+  namespace: kubeflow
+spec:
+  rules:
+  - {}
+  selector:
+    matchLabels:
+      app: hdx-portal-user-exporter
