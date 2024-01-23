@@ -1,0 +1,11 @@
+# Default values for matilda-hdx-helm-chart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+nexusDomain : "https://nexus.hdx.matilda-mzc.com"
+nexusWebDomain : "https://nexus-web.hdx.matilda-mzc.com"
+adminFrontendTag : "abcd"
+assetBackendTag : "cdef"
+mlopsBackendTag : "ttt"
+portalFrontendTag : "ffff"
+schedulerTag : "asdfasdf"
+dexTag : "latest"
